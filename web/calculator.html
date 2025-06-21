@@ -1,0 +1,254 @@
+
+# ARCHIVO 16: web/calculator.html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora MIA Health</title>
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🧮 Calculadora MIA Health</h1>
+            <p>Cotización instantánea de seguros de salud</p>
+            <a href="/" class="btn btn-secondary">← Volver al inicio</a>
+        </header>
+
+        <main class="calculator-main">
+            <form id="calculatorForm" class="calculator-form">
+                <div class="form-section">
+                    <h3>👤 Información del Aplicante</h3>
+                    
+                    <div class="form-group">
+                        <label for="age">Edad:</label>
+                        <input type="number" id="age" name="age" min="18" max="80" value="35" required>
+                        <small>Entre 18 y 80 años</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="includeParents" name="includeParents">
+                            Incluir cobertura para padres/suegros (Factor 1.8x)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>📋 Seleccionar Plan</h3>
+                    
+                    <div class="plan-selector">
+                        <label class="plan-option">
+                            <input type="radio" name="plan" value="plata">
+                            <div class="plan-info">
+                                <h4>Plan Plata</h4>
+                                <p>Servicios básicos de telemedicina</p>
+                            </div>
+                        </label>
+                        
+                        <label class="plan-option">
+                            <input type="radio" name="plan" value="oro" checked>
+                            <div class="plan-info">
+                                <h4>Plan Oro</h4>
+                                <p>Cobertura intermedia con urgencias</p>
+                            </div>
+                        </label>
+                        
+                        <label class="plan-option">
+                            <input type="radio" name="plan" value="diamante">
+                            <div class="plan-info">
+                                <h4>Plan Diamante</h4>
+                                <p>Cobertura premium completa</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>⭐ Servicios Opcionales</h3>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="funeralAssistance" name="funeralAssistance">
+                            Asistencia Funeraria (+$135-202 aproximadamente)
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="teleVet" name="teleVet">
+                            TeleVet - Consulta Veterinaria (+$66 aproximadamente)
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-large">
+                    🧮 Calcular Prima
+                </button>
+            </form>
+
+            <div id="results" class="results-section" style="display: none;">
+                <h3>💰 Resultado de Cotización</h3>
+                
+                <div class="results-grid">
+                    <div class="result-card main-result">
+                        <h4>Prima Total</h4>
+                        <div class="price-display">
+                            <div class="annual-price">
+                                <span class="currency">$</span>
+                                <span id="annualPrice">0</span>
+                                <span class="period">/ año</span>
+                            </div>
+                            <div class="monthly-price">
+                                <span class="currency">$</span>
+                                <span id="monthlyPrice">0</span>
+                                <span class="period">/ mes</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="result-card">
+                        <h4>🧮 Desglose</h4>
+                        <div id="breakdown" class="breakdown-list"></div>
+                    </div>
+                    
+                    <div class="result-card">
+                        <h4>📋 Coberturas Incluidas</h4>
+                        <div id="coverage" class="coverage-list"></div>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button onclick="generatePDF()" class="btn btn-secondary">
+                        📄 Generar Cotización PDF
+                    </button>
+                    <button onclick="shareQuote()" class="btn btn-accent">
+                        📤 Compartir Cotización
+                    </button>
+                </div>
+            </div>
+
+            <div id="error" class="error-message" style="display: none;"></div>
+        </main>
+    </div>
+
+    <script>
+        // JavaScript para la calculadora
+        document.getElementById('calculatorForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = {
+                applicant: {
+                    age: parseInt(formData.get('age')),
+                    includeParents: formData.get('includeParents') === 'on'
+                },
+                plan: formData.get('plan'),
+                optionalServices: {
+                    funeralAssistance: formData.get('funeralAssistance') === 'on',
+                    teleVet: formData.get('teleVet') === 'on'
+                }
+            };
+            
+            try {
+                const response = await fetch('/api/quotation/calculate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result.data);
+                } else {
+                    displayError(result.error || 'Error calculating quotation');
+                }
+            } catch (error) {
+                displayError('Error connecting to server');
+            }
+        });
+        
+        function displayResults(data) {
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            
+            // Mostrar precios principales
+            document.getElementById('annualPrice').textContent = 
+                data.pricing.annual.toLocaleString('es-MX', { minimumFractionDigits: 2 });
+            document.getElementById('monthlyPrice').textContent = 
+                data.pricing.monthly.toLocaleString('es-MX', { minimumFractionDigits: 2 });
+            
+            // Mostrar desglose
+            const breakdown = document.getElementById('breakdown');
+            breakdown.innerHTML = `
+                <div class="breakdown-item">
+                    <span>Prima base:</span>
+                    <span>${data.pricing.breakdown.basePremium.toFixed(2)}</span>
+                </div>
+                <div class="breakdown-item">
+                    <span>Servicios opcionales:</span>
+                    <span>${data.pricing.breakdown.optionalsPremium.toFixed(2)}</span>
+                </div>
+                <div class="breakdown-item">
+                    <span>Ajuste por edad:</span>
+                    <span>${data.pricing.breakdown.ageAdjustment.toFixed(2)}</span>
+                </div>
+                <div class="breakdown-item">
+                    <span>Ajuste familiar:</span>
+                    <span>${data.pricing.breakdown.familyAdjustment.toFixed(2)}</span>
+                </div>
+                <div class="breakdown-item">
+                    <span>Gastos (20%):</span>
+                    <span>${data.pricing.breakdown.expenses.toFixed(2)}</span>
+                </div>
+                <div class="breakdown-item">
+                    <span>Utilidad (15%):</span>
+                    <span>${data.pricing.breakdown.profit.toFixed(2)}</span>
+                </div>
+                <div class="breakdown-item">
+                    <span>Comisión (30%):</span>
+                    <span>${data.pricing.breakdown.commission.toFixed(2)}</span>
+                </div>
+            `;
+            
+            // Mostrar coberturas
+            const coverage = document.getElementById('coverage');
+            coverage.innerHTML = data.coverage
+                .filter(item => item.included)
+                .map(item => `
+                    <div class="coverage-item">
+                        <strong>${item.serviceName}</strong>
+                        <span>${item.coverage}</span>
+                    </div>
+                `).join('');
+        }
+        
+        function displayError(message) {
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+            document.getElementById('results').style.display = 'none';
+        }
+        
+        function generatePDF() {
+            alert('Función de PDF en desarrollo');
+        }
+        
+        function shareQuote() {
+            const url = window.location.href;
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Cotización MIA Health',
+                    url: url
+                });
+            } else {
+                navigator.clipboard.writeText(url);
+                alert('URL copiada al portapapeles');
+            }
+        }
+    </script>
+</body>
+</html>
